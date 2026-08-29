@@ -8,15 +8,18 @@ const submenuItems = [
   { label: "About Partistaff", href: "/about" },
   { label: "How it works", href: "/how-it-works" },
   { label: "Pricing", href: "/contact-us" },
-  { label: "Talent", href: "/#services" },
+  { label: "Talent", href: "/staff" },
   { label: "Clients", href: "/#testimonials" },
   { label: "FAQs", href: "/faqs" },
 ];
 
 const normalizePath = (path: string) => path.replace(/\/+$/, "") || "/";
 const currentPath = normalizePath(Astro.url.pathname);
-const isCurrentItem = (href: string) =>
-  !href.startsWith("/#") && normalizePath(new URL(withBase(href), Astro.url).pathname) === currentPath;
+const isCurrentItem = (href: string) => {
+  if (href.startsWith("/#")) return false;
+  const targetPath = normalizePath(new URL(withBase(href), Astro.url).pathname);
+  return currentPath === targetPath || (targetPath !== "/" && currentPath.startsWith(`${targetPath}/`));
+};
 const dropdownIsCurrent = submenuItems.some((item) => isCurrentItem(item.href));
 const { class: className, ...rest } = Astro.props;
 ---
@@ -51,7 +54,13 @@ const { class: className, ...rest } = Astro.props;
             }
           </div>
         </li>
-        <li><a class="site-header__nav-link" href={withBase("/#services")}>Talent</a></li>
+        <li>
+          <a
+            class:list={["site-header__nav-link", { "is-current": isCurrentItem("/staff") }]}
+            href={withBase("/staff")}
+            aria-current={isCurrentItem("/staff") ? "page" : undefined}
+          >Talent</a>
+        </li>
         <li><a class="site-header__nav-link" href={withBase("/#services")}>Villas</a></li>
         <li><a class="site-header__nav-link" href={withBase("/contact-us")}>Contact</a></li>
         <li class="site-header__mobile-login">

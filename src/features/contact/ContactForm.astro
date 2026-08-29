@@ -40,14 +40,78 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
           <span>Subject <b>(Required)</b></span>
           <select name="subject" required>
             <option value="" selected disabled>What are you enquiring about?</option>
-            <option>Yacht Hire</option>
-            <option>Villa Hire</option>
-            <option>Entertainment</option>
-            <option>Staffing</option>
-            <option>How It Works</option>
-            <option>Other</option>
+            <optgroup label="Book staff">
+              <option data-booking>Wait staff & event hosts</option>
+              <option data-booking>Bartenders & cocktail service</option>
+              <option data-booking>DJs, MCs & entertainment</option>
+              <option data-booking>Promotional models & brand ambassadors</option>
+              <option data-booking>Full event staffing package</option>
+            </optgroup>
+            <optgroup label="Other enquiries">
+              <option>Change or question about an existing booking</option>
+              <option>Join the PartiStaff talent team</option>
+              <option>Partnerships & media</option>
+              <option>How PartiStaff works</option>
+              <option>Something else</option>
+            </optgroup>
           </select>
         </label>
+
+        <div class="contact-form__booking" data-booking-fields hidden>
+          <div class="contact-form__divider contact-form__field--wide">
+            <h3>Booking details</h3>
+            <p>Tell us about your event — the more we know, the faster we can confirm availability.</p>
+          </div>
+
+          <label class="contact-form__field">
+            <span>Event location</span>
+            <input name="location" type="text" placeholder="Suburb or venue" />
+          </label>
+
+          <label class="contact-form__field">
+            <span>Number of staff</span>
+            <input name="staffCount" type="number" inputmode="numeric" min="1" max="99" step="1" placeholder="e.g. 2" />
+          </label>
+
+          <label class="contact-form__field">
+            <span>Occasion</span>
+            <select name="occasion">
+              <option value="" selected>Select an occasion</option>
+              <option>Birthday party</option>
+              <option>Corporate event</option>
+              <option>Wedding</option>
+              <option>Hens or bucks party</option>
+              <option>Boat party</option>
+              <option>Brand activation</option>
+              <option>Private dinner</option>
+              <option>Other</option>
+            </select>
+          </label>
+
+          <label class="contact-form__field">
+            <span>Duration (hours)</span>
+            <input name="duration" type="number" inputmode="decimal" min="2" max="24" step="0.5" placeholder="e.g. 4" />
+            <small>Minimum booking is 2 hours.</small>
+          </label>
+
+          <fieldset class="contact-form__timing contact-form__field--wide">
+            <legend>When do you need staff?</legend>
+            <div class="contact-form__choices">
+              <label>
+                <input type="radio" name="timing" value="asap" checked />
+                <span>As soon as possible</span>
+              </label>
+              <label>
+                <input type="radio" name="timing" value="future" />
+                <span>Future date</span>
+              </label>
+            </div>
+            <label class="contact-form__field contact-form__date">
+              <span>Event date <b>(Required)</b></span>
+              <input name="eventDate" type="date" />
+            </label>
+          </fieldset>
+        </div>
 
         <label class="contact-form__field contact-form__field--wide">
           <span>Message</span>
@@ -88,9 +152,20 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
         </a>
       </div>
 
-      <p class="contact-form__note">
+      <p class="contact-form__note contact-form__note--default">
         Your chosen app opens with this form's details. Review the message there before sending.
       </p>
+      <noscript>
+        <style>
+          .contact-form__note--default {
+            display: none;
+          }
+        </style>
+        <p class="contact-form__note contact-form__note--noscript">
+          JavaScript is disabled, so your form entries can't be included automatically — please type your details into
+          the email or WhatsApp message that opens.
+        </p>
+      </noscript>
     </form>
 
     <aside class="contact-info" aria-labelledby="contact-info-title">
@@ -128,6 +203,14 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
       return String(data.get(key) ?? "").trim();
     }
 
+    function formatEventDate(isoDate: string) {
+      const [year, month, day] = isoDate.split("-").map(Number);
+      if (!year || !month || !day) return isoDate;
+      return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(
+        new Date(year, month - 1, day),
+      );
+    }
+
     function messageDetails() {
       const data = new FormData(form);
       const firstName = value(data, "firstName");
@@ -135,6 +218,14 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
       const name = [firstName, lastName].filter(Boolean).join(" ");
       const senderEmail = value(data, "email");
       const subject = value(data, "subject");
+      const location = value(data, "location");
+      const staffCount = value(data, "staffCount");
+      const occasion = value(data, "occasion");
+      const duration = value(data, "duration");
+      const timing = value(data, "timing");
+      const eventDate = value(data, "eventDate");
+      const hasBookingDetails = Boolean(location || staffCount || occasion || duration || timing);
+      const dateDetail = timing === "future" ? formatEventDate(eventDate) : "As soon as possible";
       const lines = [
         "Hi PartiStaff, I have an enquiry.",
         "",
@@ -142,6 +233,17 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
         ...(senderEmail ? [`Email: ${senderEmail}`] : []),
         `Mobile: ${value(data, "mobile")}`,
         `Enquiry: ${subject}`,
+        ...(hasBookingDetails
+          ? [
+              "",
+              "Booking details:",
+              ...(location ? [`Location: ${location}`] : []),
+              ...(staffCount ? [`Number of staff: ${staffCount}`] : []),
+              ...(occasion ? [`Occasion: ${occasion}`] : []),
+              `Date: ${dateDetail}`,
+              ...(duration ? [`Duration: ${duration} hours`] : []),
+            ]
+          : []),
         "",
         "Message:",
         value(data, "message"),
@@ -154,12 +256,18 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
     }
 
     function updateLinks() {
-      const details = messageDetails();
+      const details = form.checkValidity() ? messageDetails() : null;
+      const fallbackBody = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
+
       if (emailLink) {
-        emailLink.href = `mailto:${contactEmail}?subject=${encodeURIComponent(details.subject)}&body=${encodeURIComponent(details.body)}`;
+        emailLink.href = details
+          ? `mailto:${contactEmail}?subject=${encodeURIComponent(details.subject)}&body=${encodeURIComponent(details.body)}`
+          : `mailto:${contactEmail}?subject=New%20enquiry&body=${fallbackBody}`;
       }
       if (whatsappLink) {
-        whatsappLink.href = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(details.body)}`;
+        whatsappLink.href = details
+          ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(details.body)}`
+          : `https://wa.me/${whatsappNumber}?text=${fallbackBody}`;
       }
     }
 
@@ -168,11 +276,47 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
       else updateLinks();
     }
 
-    form.addEventListener("input", updateLinks);
-    form.addEventListener("change", updateLinks);
+    const bookingFields = form.querySelector<HTMLElement>("[data-booking-fields]");
+    const subjectSelect = form.querySelector<HTMLSelectElement>('select[name="subject"]');
+    const eventDateInput = form.querySelector<HTMLInputElement>('input[name="eventDate"]');
+
+    function todayIso() {
+      const now = new Date();
+      return [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-");
+    }
+
+    function syncBookingFields() {
+      const isBooking = Boolean(subjectSelect?.selectedOptions[0]?.hasAttribute("data-booking"));
+
+      if (bookingFields) {
+        bookingFields.hidden = !isBooking;
+        bookingFields.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select").forEach((field) => {
+          field.disabled = !isBooking;
+        });
+      }
+
+      if (eventDateInput) {
+        const isFuture = form.querySelector<HTMLInputElement>('input[name="timing"]:checked')?.value === "future";
+        eventDateInput.min = todayIso();
+        eventDateInput.required = isBooking && isFuture;
+        eventDateInput.disabled = !isBooking || !isFuture;
+      }
+    }
+
+    function refresh() {
+      syncBookingFields();
+      updateLinks();
+    }
+
+    form.addEventListener("input", refresh);
+    form.addEventListener("change", refresh);
     emailLink?.addEventListener("click", validate);
     whatsappLink?.addEventListener("click", validate);
-    updateLinks();
+    refresh();
   });
 </script>
 
@@ -204,6 +348,7 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
 
   .contact-form__field {
     display: grid;
+    grid-template-rows: max-content 1fr;
     min-width: 0;
     gap: 0.45rem;
   }
@@ -218,13 +363,13 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
   }
 
   .contact-form__field b {
-    color: var(--color-text-soft);
+    color: var(--color-text-muted);
     font-size: 0.72rem;
     font-weight: 400;
   }
 
   .contact-form__field small {
-    color: var(--color-text-soft);
+    color: var(--color-text-muted);
     font-size: 0.72rem;
   }
 
@@ -317,8 +462,86 @@ const initialMessage = encodeURIComponent("Hi PartiStaff, I have an enquiry.");
 
   .contact-form__note {
     margin-top: 0.8rem;
-    color: var(--color-text-soft);
+    color: var(--color-text-muted);
     font-size: 0.72rem;
+  }
+
+  .contact-form__note--noscript {
+    color: var(--color-accent-dark);
+    font-weight: 600;
+  }
+
+  .contact-form__booking {
+    display: contents;
+  }
+
+  .contact-form__booking[hidden] {
+    display: none;
+  }
+
+  .contact-form__divider {
+    padding-top: 1.25rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .contact-form__divider h3 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .contact-form__divider p {
+    margin-top: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+  }
+
+  .contact-form__timing {
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  .contact-form__timing legend {
+    padding: 0;
+    margin-bottom: 0.55rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .contact-form__choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+  }
+
+  .contact-form__choices label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .contact-form__choices input {
+    width: 1.05rem;
+    height: 1.05rem;
+    padding: 0;
+    accent-color: var(--color-accent);
+  }
+
+  .contact-form__choices input:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .contact-form__date {
+    margin-top: 0.85rem;
+  }
+
+  .contact-form__timing:has(input[value="asap"]:checked) .contact-form__date {
+    display: none;
   }
 
   .contact-info {

@@ -9,6 +9,7 @@ interface Props {
   items?: readonly string[];
   primaryLabel?: string;
   secondaryLabel?: string;
+  secondaryHref?: string;
   reverse?: boolean;
   compact?: boolean;
 }
@@ -26,6 +27,7 @@ const {
   ],
   primaryLabel = "Create Your Event",
   secondaryLabel = "Browse Staff",
+  secondaryHref = "/staff",
   reverse = false,
   compact = false,
 } = Astro.props;
@@ -42,7 +44,7 @@ const {
           {primaryLabel}
           <svg class="button__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5 5 5-5 5M3 10h14"></path></svg>
         </a>
-        <a class="button button--light" href={withBase("/#services")}>{secondaryLabel}</a>
+        <a class="button button--light" href={withBase(secondaryHref)}>{secondaryLabel}</a>
       </div>
     </div>
   </div>
