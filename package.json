@@ -8,12 +8,18 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backend:start": "supabase start",
+    "backend:stop": "supabase stop",
+    "backend:reset": "supabase db reset",
+    "backend:functions": "supabase functions serve staff --no-verify-jwt",
+    "backend:lint": "supabase db lint --local"
   },
   "dependencies": {
     "astro": "^7.1.4"
   },
   "devDependencies": {
+    "supabase": "^2.115.0",
     "typescript": "^7.0.2"
   }
 }

@@ -1,0 +1,463 @@
+---
+import StaffCard from "./StaffCard.astro";
+import type { StaffFacets, StaffProfile } from "./staff.types";
+
+interface Props {
+  profiles: StaffProfile[];
+  facets: StaffFacets;
+}
+
+const { profiles, facets } = Astro.props;
+const initialPageSize = 4;
+---
+
+<section class="staff-directory" data-staff-directory data-page-size={initialPageSize}>
+  <div class="container">
+    <form class="staff-directory__filters" data-staff-filters>
+      <label class="staff-directory__search">
+        <span class="sr-only">Search talent</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+        <input type="search" name="query" placeholder="Search names or roles" autocomplete="off" data-staff-query />
+      </label>
+
+      <label>
+        <span>Location</span>
+        <select name="location" data-staff-location>
+          <option value="">All locations</option>
+          {facets.locations.map((location) => <option value={location.toLocaleLowerCase()}>{location}</option>)}
+        </select>
+      </label>
+
+      <label>
+        <span>Role</span>
+        <select name="role" data-staff-role>
+          <option value="">All roles</option>
+          {facets.roles.map((role) => <option value={role.toLocaleLowerCase()}>{role}</option>)}
+        </select>
+      </label>
+
+      <label>
+        <span>Sort</span>
+        <select name="sort" data-staff-sort>
+          <option value="recommended">Recommended</option>
+          <option value="rating">Highest rated</option>
+          <option value="most-booked">Most booked</option>
+          <option value="newest">Newest</option>
+        </select>
+      </label>
+
+      <label class="staff-directory__toggle">
+        <input type="checkbox" name="available" data-staff-available />
+        <span aria-hidden="true"></span>
+        Available now
+      </label>
+    </form>
+
+    <div class="staff-directory__meta">
+      <p aria-live="polite"><strong data-staff-count>{profiles.length}</strong> talent shown</p>
+      <div class="staff-directory__view" role="group" aria-label="Choose listing view">
+        <button class="is-active" type="button" aria-label="Grid view" aria-pressed="true" data-staff-view="grid" title="Grid view">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+        </button>
+        <button type="button" aria-label="List view" aria-pressed="false" data-staff-view="list" title="List view">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"></path><circle cx="4.5" cy="6" r="1"></circle><circle cx="4.5" cy="12" r="1"></circle><circle cx="4.5" cy="18" r="1"></circle></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="staff-directory__grid" data-staff-grid>
+      {profiles.map((profile, index) => <StaffCard profile={profile} initiallyHidden={index >= initialPageSize} />)}
+    </div>
+
+    <div class="staff-directory__empty" data-staff-empty hidden>
+      <h2>No matching talent</h2>
+      <p>Try another location, role, or search term.</p>
+      <button class="button" type="button" data-staff-reset>Reset filters</button>
+    </div>
+
+    <div class="staff-directory__load-more">
+      <button class="button" type="button" data-staff-load-more>Load more</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-staff-directory]").forEach((directory) => {
+    const form = directory.querySelector<HTMLFormElement>("[data-staff-filters]");
+    const queryInput = directory.querySelector<HTMLInputElement>("[data-staff-query]");
+    const locationSelect = directory.querySelector<HTMLSelectElement>("[data-staff-location]");
+    const roleSelect = directory.querySelector<HTMLSelectElement>("[data-staff-role]");
+    const sortSelect = directory.querySelector<HTMLSelectElement>("[data-staff-sort]");
+    const availableInput = directory.querySelector<HTMLInputElement>("[data-staff-available]");
+    const grid = directory.querySelector<HTMLElement>("[data-staff-grid]");
+    const count = directory.querySelector<HTMLElement>("[data-staff-count]");
+    const empty = directory.querySelector<HTMLElement>("[data-staff-empty]");
+    const reset = directory.querySelector<HTMLButtonElement>("[data-staff-reset]");
+    const loadMore = directory.querySelector<HTMLButtonElement>("[data-staff-load-more]");
+    const viewButtons = Array.from(directory.querySelectorAll<HTMLButtonElement>("[data-staff-view]"));
+    const cards = Array.from(directory.querySelectorAll<HTMLElement>("[data-staff-card]"));
+    const pageSize = Number(directory.dataset.pageSize) || 12;
+    let visibleLimit = pageSize;
+
+    if (!form || !queryInput || !locationSelect || !roleSelect || !sortSelect || !availableInput || !grid) return;
+
+    const normalize = (value: string) => value.trim().toLocaleLowerCase();
+
+    function hydrateFromUrl() {
+      const params = new URLSearchParams(location.search);
+      queryInput.value = params.get("query") ?? "";
+      locationSelect.value = params.get("location") ?? "";
+      roleSelect.value = params.get("role") ?? "";
+      availableInput.checked = params.get("available") === "true";
+      const sort = params.get("sort");
+      if (sort && Array.from(sortSelect.options).some((option) => option.value === sort)) {
+        sortSelect.value = sort;
+      }
+    }
+
+    function syncUrl() {
+      const params = new URLSearchParams();
+      const query = queryInput.value.trim();
+      if (query) params.set("query", query);
+      if (locationSelect.value) params.set("location", locationSelect.value);
+      if (roleSelect.value) params.set("role", roleSelect.value);
+      if (availableInput.checked) params.set("available", "true");
+      if (sortSelect.value !== "recommended") params.set("sort", sortSelect.value);
+      const serializedParams = params.toString();
+      const nextUrl = `${location.pathname}${serializedParams ? `?${serializedParams}` : ""}`;
+      history.replaceState(null, "", nextUrl);
+    }
+
+    function sortCards(left: HTMLElement, right: HTMLElement) {
+      if (sortSelect.value === "rating") {
+        return Number(right.dataset.rating) - Number(left.dataset.rating);
+      }
+      if (sortSelect.value === "most-booked") {
+        return Number(right.dataset.jobs) - Number(left.dataset.jobs);
+      }
+      if (sortSelect.value === "newest") {
+        return Date.parse(right.dataset.joined ?? "") - Date.parse(left.dataset.joined ?? "");
+      }
+      return (
+        Number(right.dataset.available === "true") - Number(left.dataset.available === "true") ||
+        Number(right.dataset.rating) - Number(left.dataset.rating) ||
+        Number(right.dataset.jobs) - Number(left.dataset.jobs)
+      );
+    }
+
+    function update(resetLimit = false) {
+      if (resetLimit) visibleLimit = pageSize;
+      const search = normalize(queryInput.value);
+      const locationFilter = locationSelect.value;
+      const roleFilter = roleSelect.value;
+
+      const matches = cards
+        .filter((card) => {
+          const roles = (card.dataset.roles ?? "").split("|");
+          const matchesSearch =
+            !search ||
+            (card.dataset.name ?? "").includes(search) ||
+            (card.dataset.bio ?? "").includes(search) ||
+            roles.some((role) => role.includes(search));
+          const matchesLocation = !locationFilter || card.dataset.location === locationFilter;
+          const matchesRole = !roleFilter || roles.includes(roleFilter);
+          const matchesAvailability = !availableInput.checked || card.dataset.available === "true";
+          return matchesSearch && matchesLocation && matchesRole && matchesAvailability;
+        })
+        .sort(sortCards);
+
+      matches.forEach((card) => grid.append(card));
+      cards.forEach((card) => {
+        card.hidden = true;
+      });
+      matches.slice(0, visibleLimit).forEach((card) => {
+        card.hidden = false;
+      });
+
+      if (count) count.textContent = String(Math.min(matches.length, visibleLimit));
+      if (empty) empty.hidden = matches.length > 0;
+      if (loadMore) loadMore.hidden = matches.length <= visibleLimit;
+      syncUrl();
+    }
+
+    form.addEventListener("submit", (event) => event.preventDefault());
+    form.addEventListener("input", () => update(true));
+    form.addEventListener("change", () => update(true));
+    reset?.addEventListener("click", () => {
+      form.reset();
+      update(true);
+      queryInput.focus();
+    });
+    loadMore?.addEventListener("click", () => {
+      visibleLimit += pageSize;
+      update();
+    });
+
+    viewButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const listView = button.dataset.staffView === "list";
+        cards.forEach((card) => card.classList.toggle("is-list", listView));
+        grid.classList.toggle("is-list", listView);
+        viewButtons.forEach((item) => {
+          const active = item === button;
+          item.classList.toggle("is-active", active);
+          item.setAttribute("aria-pressed", String(active));
+        });
+      });
+    });
+
+    hydrateFromUrl();
+    update(true);
+  });
+</script>
+
+<style>
+  .staff-directory {
+    padding-block: clamp(3rem, 6vw, 5rem);
+    background: #ffffff;
+  }
+
+  .staff-directory__filters {
+    display: grid;
+    grid-template-columns: minmax(15rem, 1.5fr) repeat(3, minmax(10rem, 1fr)) auto;
+    padding-bottom: 1.25rem;
+    align-items: end;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .staff-directory__filters > label:not(.staff-directory__toggle) {
+    display: grid;
+    min-width: 0;
+    gap: 0.4rem;
+  }
+
+  .staff-directory__filters label > span:not(.sr-only) {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .staff-directory__filters input[type="search"],
+  .staff-directory__filters select {
+    width: 100%;
+    height: 2.875rem;
+    min-width: 0;
+    padding-inline: 0.8rem;
+    color: var(--color-text);
+    background: #ffffff;
+    border: 1px solid #d7d9dd;
+    border-radius: var(--radius-md);
+    outline: none;
+  }
+
+  .staff-directory__filters input:focus,
+  .staff-directory__filters select:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgb(238 43 102 / 12%);
+  }
+
+  .staff-directory__search {
+    position: relative;
+    align-self: end;
+  }
+
+  .staff-directory__search svg {
+    position: absolute;
+    top: 50%;
+    left: 0.85rem;
+    z-index: 1;
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: var(--color-text-soft);
+    stroke-linecap: round;
+    stroke-width: 1.7;
+    transform: translateY(-50%);
+  }
+
+  .staff-directory__search input[type="search"] {
+    padding-left: 2.6rem;
+  }
+
+  .staff-directory__toggle {
+    display: inline-flex;
+    min-height: 2.875rem;
+    padding-inline: 0.25rem;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .staff-directory__toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .staff-directory__toggle > span {
+    position: relative;
+    width: 2.35rem;
+    height: 1.35rem;
+    background: #c8cbd0;
+    border-radius: 999px;
+    transition: background-color 160ms ease;
+  }
+
+  .staff-directory__toggle > span::after {
+    position: absolute;
+    top: 0.2rem;
+    left: 0.2rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    background: #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+    content: "";
+    transition: transform 160ms ease;
+  }
+
+  .staff-directory__toggle input:checked + span {
+    background: var(--color-accent);
+  }
+
+  .staff-directory__toggle input:checked + span::after {
+    transform: translateX(1rem);
+  }
+
+  .staff-directory__toggle input:focus-visible + span {
+    outline: 3px solid rgb(238 43 102 / 25%);
+    outline-offset: 2px;
+  }
+
+  .staff-directory__meta {
+    display: flex;
+    padding-block: 1.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .staff-directory__meta p {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+  }
+
+  .staff-directory__meta strong {
+    color: var(--color-text);
+  }
+
+  .staff-directory__view {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 2.4rem);
+    padding: 0.2rem;
+    background: #f1f2f3;
+    border-radius: var(--radius-md);
+  }
+
+  .staff-directory__view button {
+    display: grid;
+    width: 2.4rem;
+    height: 2.2rem;
+    padding: 0;
+    place-items: center;
+    color: var(--color-text-soft);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .staff-directory__view button.is-active {
+    color: var(--color-text);
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
+  }
+
+  .staff-directory__view svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+  }
+
+  .staff-directory__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .staff-directory__grid.is-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-directory__load-more {
+    display: flex;
+    padding-top: 2rem;
+    justify-content: center;
+  }
+
+  .staff-directory__load-more button[hidden] {
+    display: none;
+  }
+
+  .staff-directory__empty {
+    padding: 4rem 1rem;
+    text-align: center;
+    border-block: 1px solid var(--color-border);
+  }
+
+  .staff-directory__empty h2 {
+    font-family: var(--font-cursive);
+    font-size: 3rem;
+    font-weight: 400;
+  }
+
+  .staff-directory__empty p {
+    margin: 0.4rem 0 1.25rem;
+    color: var(--color-text-muted);
+  }
+
+  @media (max-width: 1100px) {
+    .staff-directory__filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .staff-directory__search {
+      grid-column: 1 / -1;
+    }
+
+    .staff-directory__grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .staff-directory__grid.is-list {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .staff-directory__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .staff-directory__filters,
+    .staff-directory__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .staff-directory__toggle {
+      padding-inline: 0;
+    }
+  }
+</style>

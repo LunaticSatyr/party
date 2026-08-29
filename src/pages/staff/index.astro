@@ -1,0 +1,26 @@
+---
+import PageHero from "../../components/PageHero.astro";
+import StaffDirectory from "../../features/staff/StaffDirectory.astro";
+import { staffRepository } from "../../features/staff/staff.repository";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const [{ data: profiles }, facets] = await Promise.all([
+  staffRepository.list({ limit: 50 }),
+  staffRepository.getFacets(),
+]);
+---
+
+<BaseLayout
+  title="Browse Event Talent | PartiStaff"
+  description="Browse available event hosts, bartenders, DJs, promotional talent, and hospitality professionals."
+>
+  <main>
+    <PageHero
+      title="Talent"
+      eyebrow="Browse staff"
+      description="Find experienced people for private events, launches, celebrations, and hospitality teams."
+      compact
+    />
+    <StaffDirectory profiles={profiles} facets={facets} />
+  </main>
+</BaseLayout>

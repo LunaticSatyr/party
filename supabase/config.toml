@@ -1,0 +1,4 @@
+project_id = "party"
+
+[functions.staff]
+verify_jwt = false
